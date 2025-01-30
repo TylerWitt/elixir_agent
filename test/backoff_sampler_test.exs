@@ -89,7 +89,7 @@ defmodule BackoffSamplerTest do
   end
 
   test "handle when we need rand(0)" do
-    BackoffSampler.do_sample?(%{
+    assert BackoffSampler.do_sample?(%{
       cycle_number: 1,
       sampled_true_count: 0,
       sampling_target: 10,
