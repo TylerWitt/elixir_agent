@@ -55,11 +55,11 @@ defmodule NewRelic.DistributedTrace.W3CTraceContext.TraceState do
 
   def decode(header) when is_binary(header) do
     members =
-      header
-      |> String.split(",")
-      |> Enum.map(&String.trim/1)
-      |> Enum.map(&String.split(&1, "="))
-      |> Enum.reject(&(&1 == [""]))
+      for member <- String.split(header, ","),
+          member = member |> String.trim(" ") |> String.split("="),
+          member != [""] do
+        member
+      end
 
     %__MODULE__{members: validate(members)}
   end
@@ -80,7 +80,10 @@ defmodule NewRelic.DistributedTrace.W3CTraceContext.TraceState do
 
   defp validate(members) do
     case valid_members?(members) do
-      true -> Enum.flat_map(members, &decode_member/1)
+      true ->
+        for member <- members,
+            decoded_member = decode_member(member),
+            not is_nil(decoded_member), do: decoded_member
       false -> []
     end
   end
@@ -137,28 +140,26 @@ defmodule NewRelic.DistributedTrace.W3CTraceContext.TraceState do
            trusted_account_key,
            _
          ] <- String.split(key, "@") do
-      [
-        %{
-          key: :new_relic,
-          value: %__MODULE__.NewRelicState{
-            trusted_account_key: trusted_account_key,
-            version: 0,
-            parent_type: parent_type |> decode_type(),
-            account_id: account_id,
-            app_id: app_id,
-            span_id: span_id,
-            transaction_id: transaction_id,
-            sampled: sampled,
-            priority: priority,
-            timestamp: timestamp |> String.to_integer()
-          }
+      %{
+        key: :new_relic,
+        value: %__MODULE__.NewRelicState{
+          trusted_account_key: trusted_account_key,
+          version: 0,
+          parent_type: parent_type |> decode_type(),
+          account_id: account_id,
+          app_id: app_id,
+          span_id: span_id,
+          transaction_id: transaction_id,
+          sampled: sampled,
+          priority: priority,
+          timestamp: timestamp |> String.to_integer()
         }
-      ]
+      }
     else
       _ ->
         NewRelic.report_metric(:supportability, [:trace_context, :tracestate, :invalid])
         NewRelic.log(:debug, "Bad W3C NR tracestate: `#{key}`: `#{value}`")
-        []
+        nil
     end
   end
 
@@ -174,9 +175,7 @@ defmodule NewRelic.DistributedTrace.W3CTraceContext.TraceState do
   end
 
   defp decode_member(:other, key, value) do
-    [
-      %{key: key, value: value}
-    ]
+    %{key: key, value: value}
   end
 
   defp vendor_type(key) do
