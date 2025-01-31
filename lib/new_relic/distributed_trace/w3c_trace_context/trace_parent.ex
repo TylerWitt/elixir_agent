@@ -65,13 +65,19 @@ defmodule NewRelic.DistributedTrace.W3CTraceContext.TraceParent do
           sampled: sampled
         }
       }) do
-    [
-      "00",
-      String.pad_leading(trace_id, @trace_id, "0") |> String.downcase(),
-      String.pad_leading(parent_id, @parent_id, "0") |> String.downcase(),
-      (sampled && "01") || "00"
-    ]
-    |> Enum.join("-")
+    "00-#{encode_trace_id(trace_id)}-#{encode_parend_id(parent_id)}-#{(sampled && "01") || "00"}"
+  end
+
+  defp encode_trace_id(trace_id) do
+    trace_id
+    |> String.downcase()
+    |> String.pad_leading(@trace_id, "0")
+  end
+
+  defp encode_parend_id(parent_id) do
+    parent_id
+    |> String.downcase()
+    |> String.pad_leading(@parent_id, "0")
   end
 
   defp invalid() do
