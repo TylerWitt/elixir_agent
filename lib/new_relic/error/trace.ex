@@ -15,7 +15,10 @@ defmodule NewRelic.Error.Trace do
     Enum.map(errors, &format_error/1)
   end
 
+  @intrinsics [:traceId, :guid]
   defp format_error(%__MODULE__{} = error) do
+    {intrinsics, user_attributes} = Map.split(error.user_attributes, @intrinsics)
+
     [
       error.timestamp,
       error.transaction_name,
@@ -24,8 +27,8 @@ defmodule NewRelic.Error.Trace do
       %{
         stack_trace: error.stack_trace,
         agentAttributes: format_agent_attributes(error.agent_attributes),
-        userAttributes: format_user_attributes(error.user_attributes),
-        intrinsics: format_intrinsic_attributes(error.user_attributes, error)
+        userAttributes: format_user_attributes(user_attributes),
+        intrinsics: Map.put(intrinsics, :"error.expected", error.expected)
       },
       error.cat_guid
     ]
@@ -39,17 +42,8 @@ defmodule NewRelic.Error.Trace do
     %{}
   end
 
-  @intrinsics [:traceId, :guid]
-  defp format_intrinsic_attributes(user_attributes, error) do
-    user_attributes
-    |> Map.take(@intrinsics)
-    |> Map.merge(%{"error.expected": error.expected})
-  end
-
   defp format_user_attributes(user_attributes) do
-    user_attributes
-    |> Map.drop(@intrinsics)
-    |> Enum.into(%{}, fn {k, v} ->
+    Map.new(user_attributes, fn {k, v} ->
       (String.Chars.impl_for(v) && {k, v}) || {k, inspect(v)}
     end)
   end
