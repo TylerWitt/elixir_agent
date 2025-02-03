@@ -266,10 +266,6 @@ defmodule NewRelic.Config do
     do: (harvest_enabled?() && app_name() && license_key() && true) || false
 
   @doc false
-  def region_prefix,
-    do: get(:region_prefix)
-
-  @doc false
   def event_harvest_config() do
     %{
       harvest_limits: %{
