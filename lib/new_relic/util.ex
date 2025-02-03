@@ -24,11 +24,12 @@ defmodule NewRelic.Util do
   end
 
   def metric_join(segments) when is_list(segments) do
-    segments
-    |> Enum.filter(& &1)
-    |> Enum.map(&to_string/1)
-    |> Enum.map(&String.replace_leading(&1, "/", ""))
-    |> Enum.map(&String.replace_trailing(&1, "/", ""))
+    for segment <- segments, segment do
+      segment
+      |> to_string()
+      |> String.replace_leading("/", "")
+      |> String.replace_trailing("/", "")
+    end
     |> Enum.join("/")
   end
 
@@ -68,39 +69,35 @@ defmodule NewRelic.Util do
   end
 
   defp do_coerce_attributes(attrs) do
-    Enum.flat_map(attrs, fn
-      {_key, nil} ->
-        []
-
-      {_key, ""} ->
-        []
-
-      {key, value} when is_number(value) when is_boolean(value) ->
-        [{key, value}]
-
-      {key, value} when is_bitstring(value) ->
-        case String.valid?(value) do
-          true -> [{key, value}]
-          false -> [{key, "[BINARY_VALUE]"}]
-        end
-
-      {key, value} when is_reference(value) when is_pid(value) when is_port(value) ->
-        [{key, inspect(value)}]
-
-      {key, value} when is_atom(value) ->
-        [{key, to_string(value)}]
-
-      {key, %struct{} = value} when struct in [Date, DateTime, Time, NaiveDateTime] ->
-        [{key, struct.to_iso8601(value)}]
-
-      {key, value} ->
-        [bad_value(key, value)]
-    end)
+    for {key, value} <- attrs, not is_nil(value), value != "" do
+      {key, coerce_value(key, value)}
+    end
   end
 
-  defp bad_value(key, value) do
+  defp coerce_value(_key, value) when is_number(value), do: value
+  defp coerce_value(_key, value) when is_boolean(value), do: value
+
+  defp coerce_value(_key, value) when is_bitstring(value) do
+    if String.valid?(value) do
+      value
+    else
+      "[BINARY_VALUE]"
+    end
+  end
+
+  defp coerce_value(_key, value) when is_reference(value) or is_pid(value) or is_port(value) do
+    inspect(value)
+  end
+
+  defp coerce_value(_key, value) when is_atom(value), do: to_string(value)
+
+  defp coerce_value(_key, %struct{} = value) when struct in [Date, DateTime, Time, NaiveDateTime] do
+    struct.to_iso8601(value)
+  end
+
+  defp coerce_value(key, value) do
     NewRelic.log(:debug, "Bad attribute value: #{inspect(key)} => #{inspect(value)}")
-    {key, "[BAD_VALUE]"}
+    "[BAD_VALUE]"
   end
 
   def elixir_environment() do
@@ -119,7 +116,7 @@ defmodule NewRelic.Util do
   def metadata() do
     System.get_env()
     |> Enum.filter(fn {key, _} -> String.starts_with?(key, @nr_metadata_prefix) end)
-    |> Enum.into(%{})
+    |> Map.new()
   end
 
   def utilization() do
